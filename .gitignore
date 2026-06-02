@@ -1,0 +1,22 @@
+# Ignore everything
+*
+
+# Allow gitignore itself
+!.gitignore
+
+# Allow only some files
+!build.sh
+!CMakeLists.txt
+!main.c
+!server.c
+!registers.h
+!version.h
+!hps_0.h
+!predictor_api.h
+
+# Allow the folder
+!pid/
+# Ignore everything inside again
+pid/*
+!pid/predictor.v
+
