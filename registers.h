@@ -519,10 +519,30 @@ typedef struct pid_pio_regs_s
                                 ;   // test value 5.
     /*  48  */ pio_base_t  pid_o_test_6
                                 ;   // test value 6.
+    /*  49  */ pio_base_t  pid_o_test_7
+                                ;   // test value 7.
+    /*  50  */ pio_base_t  pid_o_test_8
+                                ;   // test value 8.
+    /*  51  */ pio_base_t  pid_o_test_9
+                                ;   // test value 9.
+    /*  52  */ pio_base_t  pid_o_test_10
+                                ;   // test value 10.
+    /*  53  */ pio_base_t  pid_o_test_11
+                                ;   // test value 11.
+    /*  54  */ pio_base_t  pid_o_test_12
+                                ;   // test value 12.
+    /*  55  */ pio_base_t  pid_o_test_13
+                                ;   // test value 13.
+    /*  56  */ pio_base_t  pid_o_test_14
+                                ;   // test value 14.
+    /*  57  */ pio_base_t  pid_o_test_15
+                                ;   // test value 15.
+    /*  58  */ pio_base_t  pid_o_test_16
+                                ;   // test value 16.
 
 }   pid_pio_regs_t;
 
-_Static_assert(sizeof(pid_pio_regs_t) == (49 * 4 * 4), "Struct size mismatch!");
+_Static_assert(sizeof(pid_pio_regs_t) == (59 * 4 * 4), "Struct size mismatch!");
 
 const static uint32_t pid_num_regs = sizeof(pid_pio_regs_t) / sizeof(pio_base_t);
 
