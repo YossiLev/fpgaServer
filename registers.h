@@ -42,7 +42,13 @@
 #define PREDICTOR_HW_BASE   (0 + PID_REG_SPACE_BASE)
 #define PREDICTOR_HW_BASE_2 (PREDICTOR_HW_BASE + sizeof(predictor_hw_regs_t))
 
-
+// example after auto-assign
+#define RECORDER_I3_CS       0x000003B0
+#define RECORDER_I3_WRITE    0x000003C0
+#define RECORDER_I3_READ     0x000003D0
+#define RECORDER_I3_DATA_IN  0x000003E0
+#define RECORDER_O3_DATA_OUT 0x000003F0
+#define RECORDER_O3_STATUS   0x00000400
 
 
 struct predictor_hw_reg_i_config_s
@@ -539,10 +545,23 @@ typedef struct pid_pio_regs_s
                                 ;   // test value 15.
     /*  58  */ pio_base_t  pid_o_test_16
                                 ;   // test value 16.
+    /*  59  */ pio_base_t  pid_recorder_i3_cs
+                                ;   // recorder I3 CS. chipset control of set 3, which is the set of signals that the predictor "recorder" module (which records internal signals of the predictor for debugging) can output. This is mostly for debugging purposes, to be able to see more internal signals of the predictor in real time.
+    /*  60  */ pio_base_t  pid_recorder_i3_write 
+                                ;   // recorder I3 write.
+    /*  61  */ pio_base_t  pid_recorder_i3_read
+                                ;   // recorder I3 read.
+    /*  62  */ pio_base_t  pid_recorder_i3_data_in
+                                ;   // recorder I3 data in.
+    /*  63  */ pio_base_t  pid_recorder_o3_data_out
+                                ;   // recorder O3 data out.
+    /*  64  */ pio_base_t  pid_recorder_o3_status
+                                ;   // recorder O3 status.
+
 
 }   pid_pio_regs_t;
 
-_Static_assert(sizeof(pid_pio_regs_t) == (59 * 4 * 4), "Struct size mismatch!");
+_Static_assert(sizeof(pid_pio_regs_t) == (65 * 4 * 4), "Struct size mismatch!");
 
 const static uint32_t pid_num_regs = sizeof(pid_pio_regs_t) / sizeof(pio_base_t);
 

@@ -38,6 +38,7 @@
 #define AVERAGING_CYCLE_NSEC        10
 #define MINIMAL_AVERAGING_CYCLES    2   // Predictor at least works for 2 cycles of 10nsec, or 20 nsec
 #define MAX_SAMPLES                 32768
+#define MAX_SAMPLES_INTERVAL        32768
 #define SLICE_SAMPLES               512
 #define MAX_NUM_OF_BUFFESRS         8
 
@@ -89,6 +90,7 @@ const static char  version_string[] =
 
 #define COMMAND_SCAN_BEGIN                      24
 #define COMMAND_SCAN_END                        25
+#define COMMAND_GET_TWO_REGISTERS_QUICK_SAMPLES 26
 
 #define COMMAND_REBOOT                          99
 
@@ -105,6 +107,7 @@ const static char  version_string[] =
 #define STATUS_INVALID_SIGNAL_INDEX             105
 #define STATUS_INVALID_PACKET_LENGTH            106
 #define STATUS_INVALID_INPUT_SELECT             107
+#define STATUS_INVALID_INTERVAL_SAMPLES         108
 #define STATUS_WARNING_ALREADY_STOPPED            1
 #define STATUS_WARNING_ALREADY_STARTED            2
 
@@ -374,6 +377,31 @@ typedef struct __attribute__((packed))
                 samples[0]              ;
 }   get_two_registers_n_samples_response_t;
 
+
+typedef struct __attribute__((packed))
+{
+    uint32_t    command                 ;
+    uint32_t    register_index_1        ;   // index of register to read, 0...15 from predictor space, 16..31 from predictor2 space
+    uint32_t    register_index_2        ;   // ditto for the 2nd register
+    uint32_t    interval_samples        ;   // interval in samples
+}   get_two_registers_quick_samples_payload_t;
+
+
+typedef struct __attribute__((packed))
+{
+    uint32_t    sample_1                ;   // Sample of register 1
+    uint32_t    sample_2                ;   // Sample of register 2
+}   get_two_registers_quick_samples_response_entry_t;
+
+
+typedef struct __attribute__((packed))
+{
+    uint32_t    num_samples             ;
+    uint32_t    register_index_1        ;
+    uint32_t    register_index_2        ;
+    get_two_registers_quick_samples_response_entry_t
+                samples[0]              ;
+}   get_two_registers_quick_samples_response_t;
 
 typedef struct __attribute__((packed))
 {
@@ -1800,6 +1828,108 @@ static void handle_get_two_registers_n_samples(const int s, const communication_
     return;
 } // static function handle_get_two_registers_n_samples(). //
 
+static void handle_get_two_registers_quick_samples(const int s, const communication_packet_t* packet)
+{
+    if (packet->len < sizeof(get_two_registers_quick_samples_payload_t))
+    {
+        printf("[%d]***ERROR: unexpected get_two_registers_quick_samples command len %d (expecting %d)\n",
+               s,
+               packet->len,
+               sizeof(get_two_registers_quick_samples_payload_t));
+        return;
+    } // if length is too small then... //
+
+    const get_two_registers_quick_samples_payload_t* cmd = (const get_two_registers_quick_samples_payload_t*) packet->payload;
+
+    if (cmd->register_index_1 > 63 || cmd->register_index_2 > 63)
+    {
+        printf("[%d]: ***ERROR: register index 1[%d] or register index 2[%d] out of bounds\n", s, cmd->register_index_1, cmd->register_index_2);
+        send_generic_response(s, packet, COMMAND_GET_TWO_REGISTERS_QUICK_SAMPLES, STATUS_INVALID_REGISTER_INDEX);
+        return;
+    } // if register index is bad then... //
+
+    if (cmd->interval_samples > MAX_SAMPLES_INTERVAL)
+    {
+        printf("[%d]: ***ERROR: interval samples [%d] exceeds maximum allowed %d\n", s, cmd->interval_samples, MAX_SAMPLES_INTERVAL);
+        send_generic_response(s, packet, COMMAND_GET_TWO_REGISTERS_QUICK_SAMPLES, STATUS_INVALID_INTERVAL_SAMPLES);
+        return;
+    } // if samples interval is bad then... //
+
+    const int rec_index_A = cmd->register_index_1;
+    const int rec_index_B = cmd->register_index_2;
+
+    const int samepls_to_send = 1024;
+    uint32_t result_buffer_size =   sizeof(get_two_registers_quick_samples_response_t) +
+                                        samepls_to_send * sizeof(get_two_registers_quick_samples_response_entry_t);
+    char* result_buffer_bytes = malloc(result_buffer_size);
+    if (result_buffer_bytes == NULL)
+    {
+        printf("[%d]: ***ERROR: result buffer size %d bytes too big\n", s, result_buffer_size);
+        send_generic_response(s, packet, COMMAND_GET_TWO_REGISTERS_QUICK_SAMPLES, STATUS_ERROR_NO_MEMORY);
+        return;
+    } // if failed to malloc() then... //
+
+
+    get_two_registers_quick_samples_response_t* response = (get_two_registers_quick_samples_response_t*)result_buffer_bytes;
+
+    response->num_samples        = samepls_to_send;
+    response->register_index_1 = (uint32_t)rec_index_A;
+    response->register_index_2 = (uint32_t)rec_index_B;
+
+
+    // 1. Configure which registers to capture and set interval
+    WRITE_PIO_REG(recorder_i3_cs,      0x0001);          // select CS[0]
+    WRITE_PIO_REG(recorder_i3_write,   1);
+    WRITE_PIO_REG(recorder_i3_data_in, (rec_index_B << 6) | rec_index_A | (1 << 12));
+    //                     ^^^ this also sets enable=1, starts capture
+    WRITE_PIO_REG(recorder_i3_write,   0);
+    // 2. Set sampling interval (e.g. every 10th clock tick)
+    WRITE_PIO_REG(recorder_i3_cs,      0x0004);          // CS[2] = interval register
+    WRITE_PIO_REG(recorder_i3_write,   1);
+    WRITE_PIO_REG(recorder_i3_data_in, 10);
+    WRITE_PIO_REG(recorder_i3_write,   0);
+
+    // 3. Poll status until enable drops to 0 (buffer full)
+    while (READ_PIO_REG(recorder_o3_status) & 0x1) {
+        usleep(100);
+    }
+
+
+    uint32_t status = READ_PIO_REG(recorder_o3_status);
+    printf("status: enable=%d counter=%d\n", status & 1, (status >> 1) & 0x3FF);
+
+    // 4. Read back samepls_to_send words from each buffer
+    WRITE_PIO_REG(recorder_i3_cs,    0x0002);            // CS[1] = set read address
+    for (int i = 0; i < samepls_to_send; i++) {
+        WRITE_PIO_REG(recorder_i3_data_in, i);
+        WRITE_PIO_REG(recorder_i3_write,   1);
+        WRITE_PIO_REG(recorder_i3_write,   0);
+        WRITE_PIO_REG(recorder_i3_cs,   0x0008);         // CS[3] = read buf_A
+        WRITE_PIO_REG(recorder_i3_read, 1);
+        WRITE_PIO_REG(recorder_i3_read, 0);
+        usleep(1);
+        response->samples[i].sample_1 = READ_PIO_REG(recorder_o3_data_out);
+        if (i < 32) {
+            printf("sampleA %d: 0x%8.8x\r\n", i, response->samples[i].sample_1);
+        }
+        WRITE_PIO_REG(recorder_i3_cs,   0x0010);         // CS[4] = read buf_B
+        WRITE_PIO_REG(recorder_i3_read, 1);
+        WRITE_PIO_REG(recorder_i3_read, 0);
+        usleep(1);
+        response->samples[i].sample_2 = READ_PIO_REG(recorder_o3_data_out);
+        if (i <32) {
+            printf("sampleB %d: 0x%8.8x\r\n", i, response->samples[i].sample_2);
+        }
+        
+    }
+
+    command_response_t response_payload;
+    response_payload.command = COMMAND_GET_TWO_REGISTERS_QUICK_SAMPLES;
+    response_payload.status  = 1;
+
+    send_response2(s, packet, (uint8_t*)& response_payload, sizeof(response_payload), (uint8_t*)result_buffer_bytes, result_buffer_size);
+    
+}
 
 
 static void handle_set_2nd_integrator_enable(const int s, const communication_packet_t* packet)
@@ -2016,8 +2146,6 @@ static void handle_set_register_and_get_two_register_samples(const int s, const 
 
     return;
 } // static function handle_set_register_and_get_two_register_samples(). //
-
-
 
 
 static void handle_select_output_signal(const int s, const communication_packet_t* packet)
@@ -2248,6 +2376,10 @@ static int handle_command(const int s, const communication_packet_t* packet)
 
         case COMMAND_GET_TWO_REGISTERS_N_SAMPLES:
             handle_get_two_registers_n_samples(s,packet);
+            return 0;
+
+        case COMMAND_GET_TWO_REGISTERS_QUICK_SAMPLES:
+            handle_get_two_registers_quick_samples(s,packet);
             return 0;
 
         case COMMAND_STOP:
