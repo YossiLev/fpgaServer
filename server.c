@@ -1857,6 +1857,7 @@ static void handle_get_two_registers_quick_samples(const int s, const communicat
 
     const int rec_index_A = cmd->register_index_1;
     const int rec_index_B = cmd->register_index_2;
+    const int interval_samples = cmd->interval_samples;
 
     const int samepls_to_send = 1024;
     uint32_t result_buffer_size =   sizeof(get_two_registers_quick_samples_response_t) +
@@ -1882,7 +1883,7 @@ static void handle_get_two_registers_quick_samples(const int s, const communicat
     // Step 1: set interval first
     WRITE_PIO_REG(recorder_i3_cs,      0x0004);
     WRITE_PIO_REG(recorder_i3_write,   1);
-    WRITE_PIO_REG(recorder_i3_data_in, 10);
+    WRITE_PIO_REG(recorder_i3_data_in, interval_samples);
     WRITE_PIO_REG(recorder_i3_write,   0);
 
     // Step 2: set indices and assert enable
@@ -1906,27 +1907,27 @@ static void handle_get_two_registers_quick_samples(const int s, const communicat
     printf("status: enable=%d counter=%d\n", status & 1, (status >> 1) & 0x3FF);
 
     // 4. Read back samepls_to_send words from each buffer
-    WRITE_PIO_REG(recorder_i3_cs,    0x0002);            // CS[1] = set read address
     for (int i = 0; i < samepls_to_send; i++) {
+        WRITE_PIO_REG(recorder_i3_cs,   0x0002);         // CS[1] = set read address
         WRITE_PIO_REG(recorder_i3_data_in, i);
         WRITE_PIO_REG(recorder_i3_write,   1);
         WRITE_PIO_REG(recorder_i3_write,   0);
         WRITE_PIO_REG(recorder_i3_cs,   0x0008);         // CS[3] = read buf_A
         WRITE_PIO_REG(recorder_i3_read, 1);
         WRITE_PIO_REG(recorder_i3_read, 0);
-        usleep(1);
+        // usleep(1);
         response->samples[i].sample_1 = READ_PIO_REG(recorder_o3_data_out);
-        if (i < 32) {
-            printf("sampleA %d: 0x%8.8x\r\n", i, response->samples[i].sample_1);
-        }
+        // if (i < 32) {
+        //     printf("sampleA %d: 0x%8.8x\r\n", i, response->samples[i].sample_1);
+        // }
         WRITE_PIO_REG(recorder_i3_cs,   0x0010);         // CS[4] = read buf_B
         WRITE_PIO_REG(recorder_i3_read, 1);
         WRITE_PIO_REG(recorder_i3_read, 0);
-        usleep(1);
+        // usleep(1);
         response->samples[i].sample_2 = READ_PIO_REG(recorder_o3_data_out);
-        if (i <32) {
-            printf("sampleB %d: 0x%8.8x\r\n", i, response->samples[i].sample_2);
-        }
+        // if (i <32) {
+        //     printf("sampleB %d: 0x%8.8x\r\n", i, response->samples[i].sample_2);
+        // }
         
     }
 
