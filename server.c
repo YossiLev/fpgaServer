@@ -1876,21 +1876,28 @@ static void handle_get_two_registers_quick_samples(const int s, const communicat
     response->register_index_1 = (uint32_t)rec_index_A;
     response->register_index_2 = (uint32_t)rec_index_B;
 
+    printf("OK here we go --------\n");
 
-    // 1. Configure which registers to capture and set interval
-    WRITE_PIO_REG(recorder_i3_cs,      0x0001);          // select CS[0]
-    WRITE_PIO_REG(recorder_i3_write,   1);
-    WRITE_PIO_REG(recorder_i3_data_in, (rec_index_B << 6) | rec_index_A | (1 << 12));
-    //                     ^^^ this also sets enable=1, starts capture
-    WRITE_PIO_REG(recorder_i3_write,   0);
-    // 2. Set sampling interval (e.g. every 10th clock tick)
-    WRITE_PIO_REG(recorder_i3_cs,      0x0004);          // CS[2] = interval register
+
+    // Step 1: set interval first
+    WRITE_PIO_REG(recorder_i3_cs,      0x0004);
     WRITE_PIO_REG(recorder_i3_write,   1);
     WRITE_PIO_REG(recorder_i3_data_in, 10);
     WRITE_PIO_REG(recorder_i3_write,   0);
 
-    // 3. Poll status until enable drops to 0 (buffer full)
-    while (READ_PIO_REG(recorder_o3_status) & 0x1) {
+    // Step 2: set indices and assert enable
+    WRITE_PIO_REG(recorder_i3_cs,      0x0001);
+    WRITE_PIO_REG(recorder_i3_write,   1);
+    WRITE_PIO_REG(recorder_i3_data_in, (rec_index_B << 6) | rec_index_A | (1 << 12));
+    WRITE_PIO_REG(recorder_i3_write,   0);
+
+    // Step 3: wait for start then finish
+    while (!(READ_PIO_REG(recorder_o3_status) & 0x1)) {
+        printf("A");
+        usleep(10);
+    }
+    while (  READ_PIO_REG(recorder_o3_status) & 0x1)  { 
+        printf("B");
         usleep(100);
     }
 
