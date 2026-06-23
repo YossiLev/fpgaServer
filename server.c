@@ -383,6 +383,8 @@ typedef struct __attribute__((packed))
     uint32_t    command                 ;
     uint32_t    register_index_1        ;   // index of register to read, 0...15 from predictor space, 16..31 from predictor2 space
     uint32_t    register_index_2        ;   // ditto for the 2nd register
+    uint32_t    register_index_3        ;   // ditto for the 2nd register
+    uint32_t    register_index_4        ;   // ditto for the 2nd register
     uint32_t    interval_samples        ;   // interval in samples
 }   get_two_registers_quick_samples_payload_t;
 
@@ -391,6 +393,8 @@ typedef struct __attribute__((packed))
 {
     uint32_t    sample_1                ;   // Sample of register 1
     uint32_t    sample_2                ;   // Sample of register 2
+    uint32_t    sample_3                ;   // Sample of register 2
+    uint32_t    sample_4                ;   // Sample of register 2
 }   get_two_registers_quick_samples_response_entry_t;
 
 
@@ -399,6 +403,8 @@ typedef struct __attribute__((packed))
     uint32_t    num_samples             ;
     uint32_t    register_index_1        ;
     uint32_t    register_index_2        ;
+    uint32_t    register_index_3        ;
+    uint32_t    register_index_4        ;
     get_two_registers_quick_samples_response_entry_t
                 samples[0]              ;
 }   get_two_registers_quick_samples_response_t;
@@ -676,6 +682,8 @@ void send_response2(const int s, const communication_packet_t *packet_header,
     response_header.type = PACKET_TYPE_RESPONSE;
 
     const int result_buffer_size = response_payload_size1 + response_payload_size2 + 12;
+    printf("send_response2: sizes => %d = %d + %d + 12\n", result_buffer_size, response_payload_size1, response_payload_size2);
+
     char* result_buffer_bytes = malloc(result_buffer_size);
     memcpy(result_buffer_bytes, &response_header, 12);
     memcpy(result_buffer_bytes + 12, response_payload1, response_payload_size1);
@@ -1857,6 +1865,8 @@ static void handle_get_two_registers_quick_samples(const int s, const communicat
 
     const int rec_index_A = cmd->register_index_1;
     const int rec_index_B = cmd->register_index_2;
+    const int rec_index_C = cmd->register_index_3;
+    const int rec_index_D = cmd->register_index_4;
     const int interval_samples = cmd->interval_samples;
 
     const int samepls_to_send = 1024;
@@ -1876,6 +1886,8 @@ static void handle_get_two_registers_quick_samples(const int s, const communicat
     response->num_samples        = samepls_to_send;
     response->register_index_1 = (uint32_t)rec_index_A;
     response->register_index_2 = (uint32_t)rec_index_B;
+    response->register_index_3 = (uint32_t)rec_index_C;
+    response->register_index_4 = (uint32_t)rec_index_D;
 
     printf("OK here we go --------\n");
 
@@ -1889,7 +1901,7 @@ static void handle_get_two_registers_quick_samples(const int s, const communicat
     // Step 2: set indices and assert enable
     WRITE_PIO_REG(recorder_i3_cs,      0x0001);
     WRITE_PIO_REG(recorder_i3_write,   1);
-    WRITE_PIO_REG(recorder_i3_data_in, (rec_index_B << 6) | rec_index_A | (1 << 12));
+    WRITE_PIO_REG(recorder_i3_data_in, (rec_index_D << 18) |(rec_index_C << 12) |(rec_index_B << 6) | rec_index_A | (1 << 24));
     WRITE_PIO_REG(recorder_i3_write,   0);
 
     // Step 3: wait for start then finish
@@ -1912,22 +1924,26 @@ static void handle_get_two_registers_quick_samples(const int s, const communicat
         WRITE_PIO_REG(recorder_i3_data_in, i);
         WRITE_PIO_REG(recorder_i3_write,   1);
         WRITE_PIO_REG(recorder_i3_write,   0);
+
         WRITE_PIO_REG(recorder_i3_cs,   0x0008);         // CS[3] = read buf_A
         WRITE_PIO_REG(recorder_i3_read, 1);
         WRITE_PIO_REG(recorder_i3_read, 0);
-        // usleep(1);
         response->samples[i].sample_1 = READ_PIO_REG(recorder_o3_data_out);
-        // if (i < 32) {
-        //     printf("sampleA %d: 0x%8.8x\r\n", i, response->samples[i].sample_1);
-        // }
+
         WRITE_PIO_REG(recorder_i3_cs,   0x0010);         // CS[4] = read buf_B
         WRITE_PIO_REG(recorder_i3_read, 1);
         WRITE_PIO_REG(recorder_i3_read, 0);
-        // usleep(1);
         response->samples[i].sample_2 = READ_PIO_REG(recorder_o3_data_out);
-        // if (i <32) {
-        //     printf("sampleB %d: 0x%8.8x\r\n", i, response->samples[i].sample_2);
-        // }
+        
+        WRITE_PIO_REG(recorder_i3_cs,   0x0020);         // CS[5] = read buf_B
+        WRITE_PIO_REG(recorder_i3_read, 1);
+        WRITE_PIO_REG(recorder_i3_read, 0);
+        response->samples[i].sample_3 = READ_PIO_REG(recorder_o3_data_out);
+        
+        WRITE_PIO_REG(recorder_i3_cs,   0x0040);         // CS[6] = read buf_B
+        WRITE_PIO_REG(recorder_i3_read, 1);
+        WRITE_PIO_REG(recorder_i3_read, 0);
+        response->samples[i].sample_4 = READ_PIO_REG(recorder_o3_data_out);
         
     }
 
