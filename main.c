@@ -641,18 +641,6 @@ void set_alpha(const double alpha, const double g0, const int n)
     WRITE_PIO_REG(o_q2_q6, q2_q6);
     WRITE_PIO_REG(o_q3_q7, q3_q7);
 
-    for (i = 0 ; i < n ; i++)
-    {
-        printf("x_i32[%d] = %d (0x%8.8lx)\n", i, x_i32[i], (unsigned long)x_i32[i]);
-    }
-
-    printf("Server register values q0_q4 0x%8.8x, q1_q5 0x%8.8x, q2_q6 %8.8x q3_q7 %8.8x\n",
-          q0_q4, q1_q5, q2_q6, q3_q7
-    );
-    printf("FPGA register values q0_q4 0x%8.8x, q1_q5 0x%8.8x, q2_q6 %8.8x q3_q7 %8.8x\n",
-           READ_PIO_REG(o_q0_q4), READ_PIO_REG(o_q1_q5), READ_PIO_REG(o_q2_q6),  READ_PIO_REG(o_q3_q7)
-    );
-
     return;
 } // function get_and_set_alpha(). //
 
