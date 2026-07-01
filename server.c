@@ -1164,38 +1164,16 @@ static void set_predictor(void)
 
     printf("------ offsets (set) %d %d\n", g_server.predictor_state.output_offset, g_server.predictor_state.output_offset_2nd);
 
-    // const int aa = GET_PIO_REG_BY_INDEX(25);
-    // const int aa2 = READ_PIO_REG(o_2nd_out_offset);
     WRITE_PIO_REG(o_delay_count     , g_server.predictor_state.delay        )  ;
     WRITE_PIO_REG(o_i0              , g_server.predictor_state.i_gain       )  ;
     WRITE_PIO_REG(o_out_offset      , g_server.predictor_state.output_offset)  ;
     WRITE_PIO_REG(o_2nd_out_offset  , g_server.predictor_state.output_offset_2nd)  ;
-    // const int bb = GET_PIO_REG_BY_INDEX(25);
-    // const int bb2 = READ_PIO_REG(o_2nd_out_offset);
+
 
     g_predictor_regs->pid_o_2nd_out_offset.data = g_server.predictor_state.output_offset_2nd;
-    // const int cc0 = g_server.predictor_state.output_offset_2nd;
-    // const int cc = g_predictor_regs->pid_o_2nd_out_offset.data;
-    // const int cc2 = READ_PIO_REG(o_2nd_out_offset);
+
     g_predictor_regs->pid_o_out_offset.data = g_server.predictor_state.output_offset;
-    // const int pcc0 = g_server.predictor_state.output_offset;
-    // const int pcc = g_predictor_regs->pid_o_out_offset.data;
-    // const int pcc2 = READ_PIO_REG(o_out_offset);
 
-    // const char *addr1 = (char *)&(g_predictor_regs->pid_o_2nd_out_offset.data);
-    // const char *addr2 = (char *)&(g_predictor_regs->pid_o_2nd_out_offset);
-    // const char *addr3 = (char *)(g_predictor_regs);
-    // const int addrD = (addr2 - addr3);
-
-    // const char *baddr1 = (char *)&(g_predictor_regs->pid_version.data);
-    // const char *baddr2 = (char *)&(g_predictor_regs->pid_version);
-    // const char *baddr3 = (char *)(g_predictor_regs);
-    // const int baddrD = (baddr2 - baddr3);
-
-    // printf("------ aabb %d %d %d %d, %d %d (%d), %d %d (%d)\n", aa, bb, aa2, bb2, cc, cc2, cc0, pcc, pcc2, pcc0);
-    // printf("------ addr %08x %08x %08x %d \n", (unsigned int)addr1, (unsigned int)addr2, (unsigned int)addr3, addrD);
-    // printf("------ addr %08x %08x %08x %d \n", (unsigned int)baddr1, (unsigned int)baddr2, (unsigned int)baddr3, baddrD);
-    
     WRITE_PIO_REG(o_y_reference     , g_server.predictor_state.input_offset )  ;
     WRITE_PIO_REG(o_manual_dac_output,g_server.predictor_state.manual_dac_output_value);
 

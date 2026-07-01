@@ -514,6 +514,15 @@ void set_alpha(const double alpha, const double g0, const int n)
 
     printf("set alpha = %f, overall gain g0 = %f, order = %d\n", alpha, g0, n);
 
+    int32_t x_i32[max_n];
+
+    int i;
+    int j;
+    for ( i = 0 ; i < max_n ; i++)
+    {
+        x_i32[i] = 0;
+    }
+
 #define M_ELEMENT(n,i,j)    __M_ELEMENT(matrix_M_vec,n,i,j)
 
     if (n > max_n)
@@ -524,112 +533,107 @@ void set_alpha(const double alpha, const double g0, const int n)
 
     if (n < 2)
     {
-        printf("***ERROR: n too small %d\n", n);
-        return;
-    }
+        x_i32[0] = (int32_t)(g0 + 0.5);
+        // printf("***ERROR: n too small %d\n", n);
+        // return;
+        printf("==== small n = %d ==== \n",n);
 
-    printf("==== n = %d ==== \n",n);
+    } else {
 
-    int i;
-    int j;
+        printf("==== n = %d ==== \n",n);
 
-    for (i = 0 ; i < max_n ; i++)
-    {
-        for (j = 0 ; j < max_n ; j++)
+        for (i = 0 ; i < max_n ; i++)
         {
-            matrix_M_area[i][j] = 0.;
-        } // for j loop. //
-    } // for i loop. //
-
-    // 
-    // M_{ij} = (-1)^{i} (alpha + j)^{i} / i!
-    //
-    // 1st row s just 1's as i=0.
-    //
-    for (i = 0 ; i < n ; i++)
-    {
-        M_ELEMENT(n,0,i) = 1.;
-    } // for i loop. //
-
-    //
-    // 2nd row and onwards:
-    double D    = 1;
-    double sign = 1;
-
-    for (i = 1 ; i < n ; i++)
-    {
-        D = D * i;  // denominator D = i!
-        sign = -sign;
-        for (j = 0 ; j < n ; j++)
-        {
-            int k;
-            double x = alpha + (double)j;
-            double xn= x;
-            for (k = 1; k < i ; k++)
+            for (j = 0 ; j < max_n ; j++)
             {
-                xn = xn*x;
+                matrix_M_area[i][j] = 0.;
+            } // for j loop. //
+        } // for i loop. //
+
+        // 
+        // M_{ij} = (-1)^{i} (alpha + j)^{i} / i!
+        //
+        // 1st row s just 1's as i=0.
+        //
+        for (i = 0 ; i < n ; i++)
+        {
+            M_ELEMENT(n,0,i) = 1.;
+        } // for i loop. //
+
+        //
+        // 2nd row and onwards:
+        double D    = 1;
+        double sign = 1;
+
+        for (i = 1 ; i < n ; i++)
+        {
+            D = D * i;  // denominator D = i!
+            sign = -sign;
+            for (j = 0 ; j < n ; j++)
+            {
+                int k;
+                double x = alpha + (double)j;
+                double xn= x;
+                for (k = 1; k < i ; k++)
+                {
+                    xn = xn*x;
+                }
+                M_ELEMENT(n,i,j) = sign*xn/ D;
+            } // for j loop. //
+        } // for i loop. //
+
+        printf("matrix M * b = \n");
+        for (i = 0 ; i < n ; i++)
+        {
+            printf(" | ");
+
+            for (j = 0 ; j < n ; j++ )
+            {
+                printf("  %10.10g", M_ELEMENT(n,i,j));
+            } // for j loop //
+
+            printf("  |  %10.10g  \n", vector_b[i]);
+        } // for i loop. //
+
+        gsl_matrix_view m = gsl_matrix_view_array(&matrix_M_area[0][0],n,n);
+        gsl_vector_view v = gsl_vector_view_array(vector_b,n);
+        gsl_vector*     x = gsl_vector_alloc(n);
+        int             s;
+
+        // printf("M as gsl sees it\n");
+        // gsl_matrix_fprintf(stdout, &m.matrix, "%10.10g");
+        // printf("b as gsl sees it\n");
+        // gsl_vector_fprintf(stdout, &v.vector, "%10.10g");
+
+        gsl_permutation* p = gsl_permutation_alloc(n);
+
+        int rc = gsl_linalg_LU_decomp(&m.matrix, p, &s);
+        printf("LU decomposition rc=%d, s=%d\n", rc, s);
+        double det = gsl_linalg_LU_det(&m.matrix,s);
+        printf("|matrix| = %g\n", det);
+        rc = gsl_linalg_LU_solve(&m.matrix, p, &v.vector, x);
+        printf("LU solve rc=%d\n", rc);
+
+        printf("resultant x= %g %g %g %g\n", x->data[0], x->data[1], x->data[2], x->data[3]);
+        //gsl_vector_fprintf(stdout, x, "%g");
+
+
+
+        for (i = 0 ; i < n ; i++)
+        {
+            if (x->data[i] > 0)
+            {
+                x_i32[i] = (int32_t)(x->data[i]*g0 + 0.5);
             }
-            M_ELEMENT(n,i,j) = sign*xn/ D;
-        } // for j loop. //
-    } // for i loop. //
-
-    printf("matrix M * b = \n");
-    for (i = 0 ; i < n ; i++)
-    {
-        printf(" | ");
-
-        for (j = 0 ; j < n ; j++ )
-        {
-            printf("  %10.10g", M_ELEMENT(n,i,j));
-        } // for j loop //
-
-        printf("  |  %10.10g  \n", vector_b[i]);
-    } // for i loop. //
-
-    gsl_matrix_view m = gsl_matrix_view_array(&matrix_M_area[0][0],n,n);
-    gsl_vector_view v = gsl_vector_view_array(vector_b,n);
-    gsl_vector*     x = gsl_vector_alloc(n);
-    int             s;
-
-    // printf("M as gsl sees it\n");
-    // gsl_matrix_fprintf(stdout, &m.matrix, "%10.10g");
-    // printf("b as gsl sees it\n");
-    // gsl_vector_fprintf(stdout, &v.vector, "%10.10g");
-
-    gsl_permutation* p = gsl_permutation_alloc(n);
-
-    int rc = gsl_linalg_LU_decomp(&m.matrix, p, &s);
-    printf("LU decomposition rc=%d, s=%d\n", rc, s);
-    double det = gsl_linalg_LU_det(&m.matrix,s);
-    printf("|matrix| = %g\n", det);
-    rc = gsl_linalg_LU_solve(&m.matrix, p, &v.vector, x);
-    printf("LU solve rc=%d\n", rc);
-
-    printf("resultant x= %g %g %g %g\n", x->data[0], x->data[1], x->data[2], x->data[3]);
-    //gsl_vector_fprintf(stdout, x, "%g");
-
-    int32_t x_i32[max_n];
-
-    for ( i = 0 ; i < max_n ; i++)
-    {
-        x_i32[i] = 0;
-    }
-
-    for (i = 0 ; i < n ; i++)
-    {
-        if (x->data[i] > 0)
-        {
-            x_i32[i] = (int32_t)(x->data[i]*g0 + 0.5);
+            else if(x->data[i] < 0)
+            {
+                x_i32[i] = (int32_t)(x->data[i]*g0 - 0.5);
+            }
         }
-        else if(x->data[i] < 0)
-        {
-            x_i32[i] = (int32_t)(x->data[i]*g0 - 0.5);
-        }
+
+        gsl_permutation_free(p);
+        gsl_vector_free(x);
     }
-
-    gsl_permutation_free(p);
-    gsl_vector_free(x);
-
 
     uint32_t q0_q4 = (x_i32[0] & 0xFFFF) | ((x_i32[4] & 0xFFFF) << 16) ;
     uint32_t q1_q5 = (x_i32[1] & 0xFFFF) | ((x_i32[5] & 0xFFFF) << 16) ;
